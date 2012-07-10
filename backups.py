@@ -21,9 +21,16 @@ class CommandException(Exception):
 def _is_uppercase(text):
     return text == text.upper()
 
+def _setup_command(cmd_options, config_dict, lock=False):
+    if lock and "lockrun" in config_dict:
+        cmd_options.extend(config_dict["lockrun"].split())
+    cmd_options.append(config_dict['cmd'])
+
 def _dupl_command(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
-    cmd_options.append(config_dict['cmd'])
+    lock = cmd in ("restore", "remove-older-than",
+                    "cleanup", "remove-all-but-n-full")
+    _setup_command(cmd_options, config_dict, lock)
     cmd_options.append(cmd)
     if getattr(args, 'force', False):
         cmd_options.append("--force")
@@ -34,7 +41,7 @@ def _dupl_command(cmd, config, cmd_options, args):
 
 def _backup(config, cmd_options, args):
     config_dict = _get_config(config, args)
-    cmd_options.append(config_dict['cmd'])
+    _setup_command(cmd_options, config_dict, True)
     if args.type != 'auto':
         cmd_options.append(args.type)
 
@@ -45,6 +52,11 @@ def _backup(config, cmd_options, args):
         if not src_opt:
             continue
         name, opt = re.split(r'\s+', src_opt, 1)
+        if "\n" in opt:
+            raise SystemError(
+                    "WARNING: newline detected in non-slashed "
+                    "line \"%s\"; please double check your config file"
+                    % opt.replace('\n', r'\n'))
         cmd_options.extend((name, opt))
 
     cmd_options.append("/")
