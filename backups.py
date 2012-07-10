@@ -28,15 +28,38 @@ def _setup_command(cmd_options, config_dict, lock=False):
 
 def _dupl_command(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
-    lock = cmd in ("restore", "remove-older-than",
+    lock = cmd in ("remove-older-than",
                     "cleanup", "remove-all-but-n-full")
+
     _setup_command(cmd_options, config_dict, lock)
     cmd_options.append(cmd)
     if getattr(args, 'force', False):
         cmd_options.append("--force")
     _render_options_args(config_dict, cmd_options)
-    cmd_options.extend(args.args)
+
     cmd_options.append(config_dict['target_url'])
+    return True
+
+def _quote(arg):
+    return '"%s"' % arg
+
+def _restore(config, cmd_options, args):
+    config_dict = _get_config(config, args)
+    _setup_command(cmd_options, config_dict, False)
+    cmd_options.append("restore")
+    _render_options_args(config_dict, cmd_options)
+
+    dest = args.dest
+    path, fname = os.path.split(dest)
+    if os.path.exists(os.path.join("/", dest)):
+        if not fname:
+            path = path + ".restored"
+        else:
+            fname = fname + ".restored"
+
+    cmd_options.extend(["--file-to-restore", dest])
+    cmd_options.append(config_dict['target_url'])
+    cmd_options.append(os.path.join("/", path, fname))
     return True
 
 def _backup(config, cmd_options, args):
@@ -143,54 +166,53 @@ target_url=file:///Volumes/WD Passport/duplicity/
     return False
 
 
+def _global_options(subparser):
+    subparser.add_argument("configuration", type=str,
+                help="name of configuration to load")
+    subparser.add_argument("-d", "--dry", action="store_true",
+                help="Only show the final "
+                "duplicity command, don't actually run it")
+
 def main(argv=None, **kwargs):
 
     dupl_commands = set(["verify", "collection-status",
             "list-current-files",
-            "restore", "remove-older-than", "cleanup",
+            "remove-older-than", "cleanup",
             "remove-all-but-n-full"])
     force_commands = set(["remove-older-than",
                         "cleanup",
                         "remove-all-but-n-full"])
+
+
     parser = argparse.ArgumentParser(prog="backups")
     subparsers = parser.add_subparsers(help="sub-command help")
     for name in dupl_commands:
         subparser = subparsers.add_parser(
                             name,
                             help="run the duplicity command %r" % name)
-        subparser.add_argument("configuration", type=str,
-                    help="name of configuration to load")
         subparser.set_defaults(cmd=functools.partial(_dupl_command, name))
+        _global_options(subparser)
         if name in force_commands:
             subparser.add_argument("--force", action="store_true",
                         help="duplicity --force option")
-        subparser.add_argument("-d", "--dry", action="store_true",
-                    help="Only show the final "
-                    "duplicity command, don't actually run it")
-        subparser.add_argument('args',
-                        nargs=argparse.REMAINDER,
-                        help="additional arguments are "
-                        "passed to duplicity following the command.")
-    subparser = subparsers.add_parser(
-            "backup",
-            help="run a backup",
-        )
+
+    subparser = subparsers.add_parser("restore", help="run a restore")
+    _global_options(subparser)
+    subparser.add_argument("dest", help="Path or file to restore, "
+                        "passed to --file-to-restore")
+    subparser.set_defaults(cmd=_restore)
+
+    subparser = subparsers.add_parser("backup", help="run a backup")
     subparser.set_defaults(cmd=_backup)
     subparser.add_argument("type",
                 choices=("full", "incremental", "auto"),
                 help="full or incremental backup")
-    subparser.add_argument("-d", "--dry", action="store_true",
-                    help="Only show the final "
-                    "duplicity command, don't actually run it")
-    subparser.add_argument("configuration", type=str,
-                help="name of configuration to load")
-    subparser = subparsers.add_parser(
-            "configs",
-            help="list configs"
-        )
+    _global_options(subparser)
+
+    subparser = subparsers.add_parser("configs", help="list configs")
     subparser.set_defaults(cmd=_list_configs)
-    subparser = subparsers.add_parser("init",
-            help="write sample config file")
+
+    subparser = subparsers.add_parser("init", help="write sample config file")
     subparser.set_defaults(cmd=_write_sample_config)
 
     args = parser.parse_args(argv)
