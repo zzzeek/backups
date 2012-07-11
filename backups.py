@@ -8,11 +8,17 @@ import resource
 import argparse
 import functools
 import sys
+import errno
 
 config_file_dest = os.path.join(
         os.environ['HOME'],
         ".duplicity",
         "backup.ini"
+    )
+
+lock_file_dest = os.path.join(
+        os.environ['HOME'],
+        ".duplicity"
     )
 
 class CommandException(Exception):
@@ -21,9 +27,7 @@ class CommandException(Exception):
 def _is_uppercase(text):
     return text == text.upper()
 
-def _setup_command(cmd_options, config_dict, lock=False):
-    if lock and "lockrun" in config_dict:
-        cmd_options.extend(config_dict["lockrun"].split())
+def _setup_command(cmd_options, config_dict):
     cmd_options.append(config_dict['cmd'])
 
 def _dupl_command(cmd, config, cmd_options, args):
@@ -31,21 +35,31 @@ def _dupl_command(cmd, config, cmd_options, args):
     lock = cmd in ("remove-older-than",
                     "cleanup", "remove-all-but-n-full")
 
-    _setup_command(cmd_options, config_dict, lock)
+    _setup_command(cmd_options, config_dict)
     cmd_options.append(cmd)
     if getattr(args, 'force', False):
         cmd_options.append("--force")
     _render_options_args(config_dict, cmd_options)
 
     cmd_options.append(config_dict['target_url'])
-    return True
+    _run_duplicity(args.configuration, cmd_options, lock, args.dry)
 
-def _quote(arg):
-    return '"%s"' % arg
+def _lock(lock_file):
+    try:
+        os.mkdir(lock_file)
+        return True
+    except OSError, err:
+        if err.errno == errno.EEXIST:
+            return False
+        else:
+            raise
+
+def _unlock(lock_file):
+    os.rmdir(lock_file)
 
 def _restore(config, cmd_options, args):
     config_dict = _get_config(config, args)
-    _setup_command(cmd_options, config_dict, False)
+    _setup_command(cmd_options, config_dict)
     cmd_options.append("restore")
     _render_options_args(config_dict, cmd_options)
 
@@ -60,13 +74,12 @@ def _restore(config, cmd_options, args):
     cmd_options.extend(["--file-to-restore", dest])
     cmd_options.append(config_dict['target_url'])
     cmd_options.append(os.path.join("/", path, fname))
-    return True
+    _run_duplicity(args.configuration, cmd_options, False, args.dry)
 
-def _backup(config, cmd_options, args):
+def _backup(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
-    _setup_command(cmd_options, config_dict, True)
-    if args.type != 'auto':
-        cmd_options.append(args.type)
+    _setup_command(cmd_options, config_dict)
+    cmd_options.append(cmd)
 
     _render_options_args(config_dict, cmd_options)
 
@@ -84,7 +97,7 @@ def _backup(config, cmd_options, args):
 
     cmd_options.append("/")
     cmd_options.append(config_dict['target_url'])
-    return True
+    _run_duplicity(args.configuration, cmd_options, True, args.dry)
 
 def _list_configs(config, cmd_options, args):
     print ("\n".join(config.sections()))
@@ -130,10 +143,6 @@ v=8
 # path of duplicity executable
 cmd=/usr/local/bin/duplicity
 
-# lockrun command - can be used in crons
-# to limit number of duplicity calls to one
-lockrun=/usr/local/bin/lockrun --quiet --lockfile=/var/log/duplicity/cron.lock --
-
 # each backup config is defined here,
 # in its own [section].
 [my_backup]
@@ -173,6 +182,29 @@ def _global_options(subparser):
                 help="Only show the final "
                 "duplicity command, don't actually run it")
 
+def _run_duplicity(name, cmd_options, lock, dry):
+    print(" ".join(cmd_options))
+
+    if not dry:
+        def setlimits():
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, 1024))
+
+        def proc():
+            p = subprocess.Popen(cmd_options, preexec_fn=setlimits)
+            p.wait()
+        if lock:
+            lockfile = os.path.join(lock_file_dest, "%s.lock" % name)
+            if not _lock(lockfile):
+                sys.stderr.write(
+                    "Lockfile %s is already acquired\n" % lockfile)
+                return
+            try:
+                proc()
+            finally:
+                _unlock(lockfile)
+        else:
+            proc()
+
 def main(argv=None, **kwargs):
 
     dupl_commands = set(["verify", "collection-status",
@@ -202,11 +234,13 @@ def main(argv=None, **kwargs):
                         "passed to --file-to-restore")
     subparser.set_defaults(cmd=_restore)
 
-    subparser = subparsers.add_parser("backup", help="run a backup")
-    subparser.set_defaults(cmd=_backup)
-    subparser.add_argument("type",
-                choices=("full", "incremental", "auto"),
-                help="full or incremental backup")
+    subparser = subparsers.add_parser("full", help="run a full backup")
+    subparser.set_defaults(cmd=functools.partial(_backup, "full"))
+    _global_options(subparser)
+
+    subparser = subparsers.add_parser("incremental",
+                            help="run an incremental backup")
+    subparser.set_defaults(cmd=functools.partial(_backup, "incremental"))
     _global_options(subparser)
 
     subparser = subparsers.add_parser("configs", help="list configs")
@@ -232,15 +266,8 @@ def main(argv=None, **kwargs):
         else:
             config.read(config_file_dest)
 
-        if cmd(config, cmd_options, args):
-            print(" ".join(cmd_options))
 
-            if not args.dry:
-                def setlimits():
-                    resource.setrlimit(resource.RLIMIT_NOFILE, (1024, 1024))
-
-                p = subprocess.Popen(cmd_options, preexec_fn=setlimits)
-                p.wait()
+        cmd(config, cmd_options, args)
     except CommandException, ce:
         sys.exit(str(ce))
 
