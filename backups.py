@@ -113,7 +113,7 @@ def _render_options_args(config_dict, cmd_options):
     dupl_opts = set(["v", "archive-dir", "name", "s3-use-new-style"])
     for k, v in config_dict.items():
         if _is_uppercase(k):
-            os.environ[k] = v
+            os.environ[k] = v % (os.environ)
         elif k in dupl_opts:
             if k == 'v':
                 cmd_options.append("-%s%s" % (k, v))
@@ -129,12 +129,19 @@ def _write_sample_config(config, cmd_options, args):
 # are passed to all sub-configs.
 # Any argument here including environment
 # variables can be per-sub-config.
+# Values can have spaces, don't add quotes as these
+# become part of the value.
 
 # environment variables - all UPPERCASE
-# names are sent to the env
+# names are sent to the env.
 AWS_ACCESS_KEY_ID=<your access key>
 AWS_SECRET_ACCESS_KEY=<your secret key>
 PASSPHRASE=this is my passphrase
+
+# env substitutions can also be used
+# with UPPERCASE variables.  Use two
+# percent signs, %%(varname)s
+PATH=/usr/local/bin:%%(PATH)s
 
 # duplicity options
 archive-dir=/Users/myusername/.duplicity/cache
