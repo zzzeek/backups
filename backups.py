@@ -63,9 +63,12 @@ def _restore(config, cmd_options, args):
     cmd_options.append("restore")
     _render_options_args(config_dict, cmd_options)
 
-    dest = args.dest
+    dest = os.path.normpath(args.dest)
+    if dest.startswith(os.sep):
+        dest = dest[1:]
+
     path, fname = os.path.split(dest)
-    if os.path.exists(os.path.join("/", dest)):
+    if os.path.exists(os.path.join(os.sep, dest)):
         if not fname:
             path = path + ".restored"
         else:
@@ -73,7 +76,7 @@ def _restore(config, cmd_options, args):
 
     cmd_options.extend(["--file-to-restore", dest])
     cmd_options.append(config_dict['target_url'])
-    cmd_options.append(os.path.join("/", path, fname))
+    cmd_options.append(os.path.join(os.sep, path, fname))
     _run_duplicity(args.configuration, cmd_options, False, args.dry)
 
 def _backup(cmd, config, cmd_options, args):
