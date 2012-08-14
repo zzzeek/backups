@@ -37,6 +37,8 @@ def _dupl_command(cmd, config, cmd_options, args):
 
     _setup_command(cmd_options, config_dict)
     cmd_options.append(cmd)
+    if getattr(args, 'arg', None):
+        cmd_options.append(args.arg)
     if getattr(args, 'force', False):
         cmd_options.append("--force")
     _render_options_args(config_dict, cmd_options)
@@ -224,7 +226,7 @@ def main(argv=None, **kwargs):
     force_commands = set(["remove-older-than",
                         "cleanup",
                         "remove-all-but-n-full"])
-
+    one_arg_commands = set(["remove-older-than", "remove-all-but-n-full"])
 
     parser = argparse.ArgumentParser(prog="backups")
     subparsers = parser.add_subparsers(help="sub-command help")
@@ -233,6 +235,8 @@ def main(argv=None, **kwargs):
                             name,
                             help="run the duplicity command %r" % name)
         subparser.set_defaults(cmd=functools.partial(_dupl_command, name))
+        if name in one_arg_commands:
+            subparser.add_argument("arg", type=str, help="command argument")
         _global_options(subparser)
         if name in force_commands:
             subparser.add_argument("--force", action="store_true",
