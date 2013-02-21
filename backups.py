@@ -86,6 +86,9 @@ def _backup(cmd, config, cmd_options, args):
     _setup_command(cmd_options, config_dict)
     cmd_options.append(cmd)
 
+    if args.asynchronous_upload:
+        cmd_options.append("--asynchronous-upload")
+
     _render_options_args(config_dict, cmd_options)
 
     for src_opt in re.split(r'\\', config_dict['source']):
@@ -250,11 +253,15 @@ def main(argv=None, **kwargs):
 
     subparser = subparsers.add_parser("full", help="run a full backup")
     subparser.set_defaults(cmd=functools.partial(_backup, "full"))
+    subparser.add_argument("--asynchronous-upload", action="store_true",
+                    help="use async mode")
     _global_options(subparser)
 
     subparser = subparsers.add_parser("incremental",
                             help="run an incremental backup")
     subparser.set_defaults(cmd=functools.partial(_backup, "incremental"))
+    subparser.add_argument("--asynchronous-upload", action="store_true",
+                    help="use async mode")
     _global_options(subparser)
 
     subparser = subparsers.add_parser("configs", help="list configs")
