@@ -38,13 +38,17 @@ def _copy_bucket(copy_pool, source_bucket, dest_bucket_name):
                 for key in source_bucket.list()
             ])
 
+def _delete_bucket(s3, name):
+    bucket = s3.lookup(name)
+    if bucket is not None:
+        bucket.delete_keys(bucket.list())
+        bucket.delete()
+
 def run_synthetic(config, args):
     config_dict = base._get_config(config, args)
     copy_pool = Pool(10, _global_connect, (config_dict, ))
 
-    cmd_options = []
-    base._setup_command(cmd_options, config_dict)
-    base._render_options_args(config_dict, cmd_options)
+    _global_connect(config_dict)
 
     target_url = config_dict['target_url']
 
@@ -58,17 +62,27 @@ def run_synthetic(config, args):
                     "tmp_source": tmp_source,
                     "tmp_dest": tmp_dest
                     }
-    run_duplicity_cmd = functools.partial(
-                                duplicity_cmd, cmd_options, replace_dict)
-
-    s3 = boto.connect_s3()
 
     # create temp buckets, dir
     local_tmp_dir = tempfile.mkdtemp()
+    duplicity_cache_dir = tempfile.mkdtemp()
+
+    config_dict['archive-dir'] = duplicity_cache_dir
+
+    _delete_bucket(s3, tmp_source)
+    _delete_bucket(s3, tmp_dest)
+
     tmp_source_bucket = s3.create_bucket(tmp_source)
     tmp_dest_bucket = s3.create_bucket(tmp_dest)
 
     try:
+        cmd_options = []
+        base._setup_command(cmd_options, config_dict)
+        base._render_options_args(config_dict, cmd_options)
+        run_duplicity_cmd = functools.partial(
+                                duplicity_cmd, cmd_options, replace_dict)
+
+        
         source_bucket = s3.lookup(source_bucket_name)
 
         all_source_keys = set(k.key for k in source_bucket.list())
@@ -104,11 +118,10 @@ def run_synthetic(config, args):
 
     finally:
         # 8. remove tmp buckets
-        tmp_source_bucket.delete_keys(tmp_source_bucket.list())
-        tmp_source_bucket.delete()
-        tmp_dest_bucket.delete_keys(tmp_dest_bucket.list())
-        tmp_dest_bucket.delete()
         shutil.rmtree(local_tmp_dir)
+        shutil.rmtree(duplicity_cache_dir)
+        _delete_bucket(s3, tmp_source)
+        _delete_bucket(s3, tmp_dest)
 
 
 def main(argv=None, **kwargs):
