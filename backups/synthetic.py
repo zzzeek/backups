@@ -7,7 +7,7 @@ import re
 import functools
 from multiprocessing import Pool
 import tempfile
-
+import shutil
 
 def duplicity_cmd(cmd_options, replace_dict, *args):
 
