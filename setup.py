@@ -16,9 +16,10 @@ setup(name='backups',
       author_email='mike@zzzcomputing.com',
       url='http://bitbucket.org/zzzeek/backups',
       license='MIT',
-      py_modules=["backups"],
+      packages=["backups"],
       zip_safe=False,
       entry_points={
-        'console_scripts': ['backups = backups:main'],
+        'console_scripts': ['backups = backups.backups:main',
+                    'synthetic = backups.synthetic:main'],
       }
 )
