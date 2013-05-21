@@ -68,12 +68,12 @@ def main(argv=None, **kwargs):
     config = base._read_config()
     try:
         if config is None and cmd is not base._write_sample_config:
-            raise CommandException("No config file: %r.  "
+            raise base.CommandException("No config file: %r.  "
                 "Please run the 'init' command to create." %
                 config_file_dest)
 
         cmd(config, cmd_options, args)
-    except CommandException, ce:
+    except base.CommandException, ce:
         sys.exit(str(ce))
 
 if __name__ == '__main__':
