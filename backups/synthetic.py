@@ -8,7 +8,9 @@ import functools
 from multiprocessing import Pool
 import tempfile
 import shutil
+import uuid
 
+s3 = None
 def duplicity_cmd(cmd_options, replace_dict, *args):
 
     cmd_options = list(cmd_options)
@@ -18,7 +20,7 @@ def duplicity_cmd(cmd_options, replace_dict, *args):
     base._run_duplicity(None, cmd_options, False, False)
 
 def log(msg, *args):
-    print msg % args
+    print(msg % args)
 
 def _copy_key(arg):
     source_name, keyname, dest_name = arg
@@ -55,8 +57,9 @@ def run_synthetic(config, args):
     source_bucket_name = re.match(r"s3\+http:\/\/(.+)",
                                         target_url).group(1)
 
-    tmp_source = "tmp_source_%s" % source_bucket_name
-    tmp_dest = "tmp_dest_%s" % source_bucket_name
+    token = uuid.uuid4().hex[0:12]
+    tmp_source = "tmp_source_%s_%s" % (token, source_bucket_name)
+    tmp_dest = "tmp_dest_%s_%s" % (token, source_bucket_name)
 
     replace_dict = {"source_bucket_name": source_bucket_name,
                     "tmp_source": tmp_source,
@@ -82,7 +85,7 @@ def run_synthetic(config, args):
         run_duplicity_cmd = functools.partial(
                                 duplicity_cmd, cmd_options, replace_dict)
 
-        
+
         source_bucket = s3.lookup(source_bucket_name)
 
         all_source_keys = set(k.key for k in source_bucket.list())
