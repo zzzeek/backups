@@ -95,7 +95,7 @@ def run_synthetic(config, args):
 
         # restore from temp source
         log("Restoring from %s to %s", tmp_source, local_tmp_dir)
-        run_duplicity_cmd("restore", "s3+http://%(tmp_source)s", local_tmp_dir)
+        run_duplicity_cmd("restore", "s3+http://%(tmp_source)s", local_tmp_dir, "--numeric-owner")
 
         # do a full backup to temp dest
         log("Backing up full from %s to %s", local_tmp_dir, tmp_dest)
