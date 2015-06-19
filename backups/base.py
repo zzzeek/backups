@@ -43,7 +43,7 @@ def _dupl_command(cmd, config, cmd_options, args):
     _render_options_args(config_dict, cmd_options)
 
     cmd_options.append(config_dict['target_url'])
-    _run_duplicity(args.configuration, cmd_options, lock, args.dry)
+    _run_duplicity(args.configuration, cmd_options, lock, args.dry, config)
 
 def _lock(lock_file):
     try:
@@ -78,7 +78,7 @@ def _restore(config, cmd_options, args):
     cmd_options.extend(["--file-to-restore", dest])
     cmd_options.append(config_dict['target_url'])
     cmd_options.append(os.path.join(os.sep, path, fname))
-    _run_duplicity(args.configuration, cmd_options, False, args.dry)
+    _run_duplicity(args.configuration, cmd_options, False, args.dry, config)
 
 def _backup(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
@@ -104,17 +104,25 @@ def _backup(cmd, config, cmd_options, args):
 
     cmd_options.append("/")
     cmd_options.append(config_dict['target_url'])
-    _run_duplicity(args.configuration, cmd_options, True, args.dry)
+    _run_duplicity(args.configuration, cmd_options, True, args.dry, config)
 
 def _list_configs(config, cmd_options, args):
     print ("\n".join(config.sections()))
     return False
 
+# TODO: cleanup these three
 def _get_config(config, args):
     if not config.has_section(args.configuration):
         raise SystemError("no such config: %s" % args.configuration)
 
     return dict(config.items(args.configuration))
+
+def _env_from_config(name, config):
+    config_dict = dict(config.items(name))
+    return dict(
+        (k, v) for k, v in config_dict.items()
+        if _is_uppercase(k)
+    )
 
 def _render_env_args(config_dict):
     for k, v in config_dict.items():
@@ -195,15 +203,17 @@ target_url=file:///Volumes/WD Passport/duplicity/
 
 
 
-def _run_duplicity(name, cmd_options, lock, dry):
+def _run_duplicity(name, cmd_options, lock, dry, config):
     print(" ".join(cmd_options))
+
+    env = _env_from_config(name, config)
 
     if not dry:
         def setlimits():
             resource.setrlimit(resource.RLIMIT_NOFILE, (1024, 1024))
 
         def proc():
-            p = subprocess.Popen(cmd_options, preexec_fn=setlimits)
+            p = subprocess.Popen(cmd_options, preexec_fn=setlimits, env=env)
             p.wait()
         if lock:
             lockfile = os.path.join(lock_file_dest, "%s.lock" % name)

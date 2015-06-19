@@ -64,8 +64,10 @@ def main(argv=None, **kwargs):
     cmd_options = []
 
     cmd = args.cmd
-
     config = base._read_config()
+    config_dict = base._get_config(config, args)
+    base._render_env_args(config_dict)
+
     try:
         if config is None and cmd is not base._write_sample_config:
             raise base.CommandException("No config file: %r.  "
