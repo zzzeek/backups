@@ -130,7 +130,7 @@ def _render_env_args(config_dict):
             os.environ[k] = v % (os.environ)
 
 def _render_options_args(config_dict, cmd_options):
-    dupl_opts = set(["v", "archive-dir", "name", "s3-use-new-style", "allow-source-mismatch"])
+    dupl_opts = set(["v", "archive-dir", "name", "s3-use-new-style", "allow-source-mismatch", "tempdir"])
     for k, v in config_dict.items():
         if _is_uppercase(k):
             os.environ[k] = v % (os.environ)
