@@ -11,13 +11,13 @@ import shutil
 import uuid
 
 s3 = None
-def duplicity_cmd(cmd_options, config, replace_dict, *args):
+def duplicity_cmd(name, cmd_options, config, replace_dict, *args):
 
     cmd_options = list(cmd_options)
     cmd_options.append(args[0])
     cmd_options.extend([a % replace_dict for a in args[1:]])
 
-    base._run_duplicity(None, cmd_options, False, False, config)
+    base._run_duplicity(name, cmd_options, False, False, config)
 
 def log(msg, *args):
     print(msg % args)
@@ -89,7 +89,8 @@ def run_synthetic(config, args):
         base._setup_command(cmd_options, config_dict)
         base._render_options_args(config_dict, cmd_options)
         run_duplicity_cmd = functools.partial(
-            duplicity_cmd, cmd_options, config, replace_dict)
+            duplicity_cmd, args.configuration,
+            cmd_options, config, replace_dict)
 
         source_bucket = s3.lookup(source_bucket_name)
 
