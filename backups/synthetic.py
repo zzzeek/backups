@@ -11,16 +11,17 @@ import shutil
 import uuid
 
 s3 = None
-def duplicity_cmd(cmd_options, replace_dict, *args):
+def duplicity_cmd(cmd_options, config, replace_dict, *args):
 
     cmd_options = list(cmd_options)
     cmd_options.append(args[0])
     cmd_options.extend([a % replace_dict for a in args[1:]])
 
-    base._run_duplicity(None, cmd_options, False, False)
+    base._run_duplicity(None, cmd_options, False, False, config)
 
 def log(msg, *args):
     print(msg % args)
+
 
 def _copy_key(arg):
     source_name, keyname, dest_name = arg
@@ -29,10 +30,12 @@ def _copy_key(arg):
     log("Copying %s", key.key)
     key.copy(dest_name, key.key)
 
+
 def _global_connect(config_dict):
     global s3
     base._render_env_args(config_dict)
     s3 = boto.connect_s3()
+
 
 def _copy_bucket(copy_pool, source_bucket, dest_bucket_name):
     copy_pool.map(_copy_key, [
@@ -40,11 +43,13 @@ def _copy_bucket(copy_pool, source_bucket, dest_bucket_name):
                 for key in source_bucket.list()
             ])
 
+
 def _delete_bucket(s3, name):
     bucket = s3.lookup(name)
     if bucket is not None:
         bucket.delete_keys(bucket.list())
         bucket.delete()
+
 
 def run_synthetic(config, args):
     config_dict = base._get_config(config, args)
@@ -54,8 +59,9 @@ def run_synthetic(config, args):
 
     target_url = config_dict['target_url']
 
-    source_bucket_name = re.match(r"s3\+http:\/\/(.+)",
-                                        target_url).group(1)
+    source_bucket_name = re.match(
+        r"s3\+http:\/\/(.+)",
+        target_url).group(1)
 
     token = uuid.uuid4().hex[0:12]
     tmp_source = "tmp_source_%s_%s" % (token, source_bucket_name)
@@ -75,7 +81,7 @@ def run_synthetic(config, args):
     _delete_bucket(s3, tmp_source)
     _delete_bucket(s3, tmp_dest)
 
-    tmp_source_bucket = s3.create_bucket(tmp_source)
+    tmp_source_bucket = s3.create_bucket(tmp_source) # noqa
     tmp_dest_bucket = s3.create_bucket(tmp_dest)
 
     try:
@@ -83,8 +89,7 @@ def run_synthetic(config, args):
         base._setup_command(cmd_options, config_dict)
         base._render_options_args(config_dict, cmd_options)
         run_duplicity_cmd = functools.partial(
-                                duplicity_cmd, cmd_options, replace_dict)
-
+            duplicity_cmd, cmd_options, config, replace_dict)
 
         source_bucket = s3.lookup(source_bucket_name)
 
@@ -95,7 +100,9 @@ def run_synthetic(config, args):
 
         # restore from temp source
         log("Restoring from %s to %s", tmp_source, local_tmp_dir)
-        run_duplicity_cmd("restore", "s3+http://%(tmp_source)s", local_tmp_dir, "--numeric-owner")
+        run_duplicity_cmd(
+            "restore", "s3+http://%(tmp_source)s",
+            local_tmp_dir, "--numeric-owner")
 
         # do a full backup to temp dest
         log("Backing up full from %s to %s", local_tmp_dir, tmp_dest)
@@ -107,12 +114,12 @@ def run_synthetic(config, args):
         diff = new_source_keys.difference(all_source_keys)
         if diff:
             raise Exception(
-                        "New files have been added to %s since "
-                        "synthetic compression started: %r" % (
-                                source_bucket_name,
-                                diff
-                            )
-                    )
+                "New files have been added to %s since "
+                "synthetic compression started: %r" % (
+                    source_bucket_name,
+                    diff
+                )
+            )
 
         # copy everything from temp dest back to original source
         _copy_bucket(copy_pool, tmp_dest_bucket, source_bucket_name)
@@ -129,8 +136,9 @@ def run_synthetic(config, args):
 
 def main(argv=None, **kwargs):
     parser = argparse.ArgumentParser(prog="synthetic_backup")
-    parser.add_argument("configuration", type=str,
-                help="name of configuration to load")
+    parser.add_argument(
+        "configuration", type=str,
+        help="name of configuration to load")
 
     args = parser.parse_args(argv)
     config = base._read_config()
