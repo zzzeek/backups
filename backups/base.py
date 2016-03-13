@@ -68,16 +68,23 @@ def _restore(config, cmd_options, args):
     if dest.startswith(os.sep):
         dest = dest[1:]
 
-    path, fname = os.path.split(dest)
-    if os.path.exists(os.path.join(os.sep, dest)):
-        if not fname:
-            path = path + ".restored"
-        else:
-            fname = fname + ".restored"
+    if args.restore_to_path:
+        restore_to = args.restore_to_path
+    else:
+        path, fname = os.path.split(dest)
+        if os.path.exists(os.path.join(os.sep, dest)):
+            if not fname:
+                path = path + ".restored"
+            else:
+                fname = fname + ".restored"
+        restore_to = os.path.join(os.sep, path, fname)
 
-    cmd_options.extend(["--file-to-restore", dest])
+    if dest:
+        cmd_options.extend(["--file-to-restore", dest])
+    if args.restore_to_path:
+        cmd_options.extend(["--numeric-owner", "--force"])
     cmd_options.append(config_dict['target_url'])
-    cmd_options.append(os.path.join(os.sep, path, fname))
+    cmd_options.append(restore_to)
     _run_duplicity(args.configuration, cmd_options, False, args.dry, config)
 
 def _backup(cmd, config, cmd_options, args):
