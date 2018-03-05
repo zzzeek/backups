@@ -1,38 +1,45 @@
 #!/usr/local/bin/python
 
 import os
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
+
 import re
 import subprocess
 import resource
-import functools
 import sys
 import errno
 
 config_file_dest = os.path.join(
-        os.environ['HOME'],
-        ".duplicity",
-        "backup.ini"
-    )
+    os.environ['HOME'],
+    ".duplicity",
+    "backup.ini"
+)
 
 lock_file_dest = os.path.join(
-        os.environ['HOME'],
-        ".duplicity"
-    )
+    os.environ['HOME'],
+    ".duplicity"
+)
+
 
 class CommandException(Exception):
     pass
 
+
 def _is_uppercase(text):
     return text == text.upper()
+
 
 def _setup_command(cmd_options, config_dict):
     cmd_options.append(config_dict['cmd'])
 
+
 def _dupl_command(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
     lock = cmd in ("remove-older-than",
-                    "cleanup", "remove-all-but-n-full")
+                   "cleanup", "remove-all-but-n-full")
 
     _setup_command(cmd_options, config_dict)
     cmd_options.append(cmd)
@@ -45,18 +52,21 @@ def _dupl_command(cmd, config, cmd_options, args):
     cmd_options.append(config_dict['target_url'])
     _run_duplicity(args.configuration, cmd_options, lock, args.dry, config)
 
+
 def _lock(lock_file):
     try:
         os.mkdir(lock_file)
         return True
-    except OSError, err:
+    except OSError as err:
         if err.errno == errno.EEXIST:
             return False
         else:
             raise
 
+
 def _unlock(lock_file):
     os.rmdir(lock_file)
+
 
 def _restore(config, cmd_options, args):
     config_dict = _get_config(config, args)
@@ -87,6 +97,7 @@ def _restore(config, cmd_options, args):
     cmd_options.append(restore_to)
     _run_duplicity(args.configuration, cmd_options, False, args.dry, config)
 
+
 def _backup(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
     _setup_command(cmd_options, config_dict)
@@ -104,18 +115,20 @@ def _backup(cmd, config, cmd_options, args):
         name, opt = re.split(r'\s+', src_opt, 1)
         if "\n" in opt:
             raise SystemError(
-                    "WARNING: newline detected in non-slashed "
-                    "line \"%s\"; please double check your config file"
-                    % opt.replace('\n', r'\n'))
+                "WARNING: newline detected in non-slashed "
+                "line \"%s\"; please double check your config file"
+                % opt.replace('\n', r'\n'))
         cmd_options.extend((name, opt))
 
     cmd_options.append("/")
     cmd_options.append(config_dict['target_url'])
     _run_duplicity(args.configuration, cmd_options, True, args.dry, config)
 
+
 def _list_configs(config, cmd_options, args):
-    print ("\n".join(config.sections()))
+    print("\n".join(config.sections()))
     return False
+
 
 # TODO: cleanup these three
 def _get_config(config, args):
@@ -124,6 +137,7 @@ def _get_config(config, args):
 
     return dict(config.items(args.configuration))
 
+
 def _env_from_config(name, config):
     config_dict = dict(config.items(name))
     return dict(
@@ -131,13 +145,17 @@ def _env_from_config(name, config):
         if _is_uppercase(k)
     )
 
+
 def _render_env_args(config_dict):
     for k, v in config_dict.items():
         if _is_uppercase(k):
             os.environ[k] = v % (os.environ)
 
+
 def _render_options_args(config_dict, cmd_options):
-    dupl_opts = set(["v", "archive-dir", "name", "s3-use-new-style", "allow-source-mismatch", "tempdir"])
+    dupl_opts = set([
+        "v", "archive-dir", "name", "s3-use-new-style",
+        "allow-source-mismatch", "tempdir"])
     for k, v in config_dict.items():
         if _is_uppercase(k):
             os.environ[k] = v % (os.environ)
@@ -148,6 +166,7 @@ def _render_options_args(config_dict, cmd_options):
                 cmd_options.append("--%s" % (k, ))
             else:
                 cmd_options.append("--%s=%s" % (k, v))
+
 
 def _write_sample_config(config, cmd_options, args):
     sample = """
@@ -209,7 +228,6 @@ target_url=file:///Volumes/WD Passport/duplicity/
     return False
 
 
-
 def _run_duplicity(name, cmd_options, lock, dry, config):
     print(" ".join(cmd_options))
 
@@ -234,6 +252,7 @@ def _run_duplicity(name, cmd_options, lock, dry, config):
                 _unlock(lockfile)
         else:
             proc()
+
 
 def _read_config():
     config = ConfigParser.SafeConfigParser()
