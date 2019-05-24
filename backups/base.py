@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 
 import os
+
 try:
     import ConfigParser
 except ImportError:
@@ -11,17 +12,11 @@ import subprocess
 import resource
 import sys
 import errno
+import time
 
-config_file_dest = os.path.join(
-    os.environ['HOME'],
-    ".duplicity",
-    "backup.ini"
-)
+config_file_dest = os.path.join(os.environ["HOME"], ".duplicity", "backup.ini")
 
-lock_file_dest = os.path.join(
-    os.environ['HOME'],
-    ".duplicity"
-)
+lock_file_dest = os.path.join(os.environ["HOME"], ".duplicity")
 
 
 class CommandException(Exception):
@@ -33,33 +28,35 @@ def _is_uppercase(text):
 
 
 def _setup_command(cmd_options, config_dict):
-    cmd_options.append(config_dict['cmd'])
+    cmd_options.append(config_dict["cmd"])
 
 
 def _dupl_command(cmd, config, cmd_options, args):
     config_dict = _get_config(config, args)
-    lock = cmd in ("remove-older-than",
-                   "cleanup", "remove-all-but-n-full")
+    lock = cmd in ("remove-older-than", "cleanup", "remove-all-but-n-full")
 
     _setup_command(cmd_options, config_dict)
     cmd_options.append(cmd)
-    if getattr(args, 'arg', None):
+    if getattr(args, "arg", None):
         cmd_options.append(args.arg)
-    if getattr(args, 'force', False):
+    if getattr(args, "force", False):
         cmd_options.append("--force")
     _render_options_args(config_dict, cmd_options)
 
-    cmd_options.append(config_dict['target_url'])
+    cmd_options.append(config_dict["target_url"])
     _run_duplicity(args.configuration, cmd_options, lock, args.dry, config)
 
 
-def _lock(lock_file):
+def _lock(lock_file, exists_callback=None):
     try:
         os.mkdir(lock_file)
         return True
     except OSError as err:
         if err.errno == errno.EEXIST:
-            return False
+            if exists_callback:
+                return exists_callback()
+            else:
+                return False
         else:
             raise
 
@@ -93,7 +90,7 @@ def _restore(config, cmd_options, args):
         cmd_options.extend(["--file-to-restore", dest])
     if args.restore_to_path:
         cmd_options.extend(["--numeric-owner", "--force"])
-    cmd_options.append(config_dict['target_url'])
+    cmd_options.append(config_dict["target_url"])
     cmd_options.append(restore_to)
     _run_duplicity(args.configuration, cmd_options, False, args.dry, config)
 
@@ -108,20 +105,21 @@ def _backup(cmd, config, cmd_options, args):
 
     _render_options_args(config_dict, cmd_options)
 
-    for src_opt in re.split(r'\\', config_dict['source']):
+    for src_opt in re.split(r"\\", config_dict["source"]):
         src_opt = src_opt.strip()
         if not src_opt:
             continue
-        name, opt = re.split(r'\s+', src_opt, 1)
+        name, opt = re.split(r"\s+", src_opt, 1)
         if "\n" in opt:
             raise SystemError(
                 "WARNING: newline detected in non-slashed "
-                "line \"%s\"; please double check your config file"
-                % opt.replace('\n', r'\n'))
+                'line "%s"; please double check your config file'
+                % opt.replace("\n", r"\n")
+            )
         cmd_options.extend((name, opt))
 
     cmd_options.append("/")
-    cmd_options.append(config_dict['target_url'])
+    cmd_options.append(config_dict["target_url"])
     _run_duplicity(args.configuration, cmd_options, True, args.dry, config)
 
 
@@ -140,10 +138,7 @@ def _get_config(config, args):
 
 def _env_from_config(name, config):
     config_dict = dict(config.items(name))
-    return dict(
-        (k, v) for k, v in config_dict.items()
-        if _is_uppercase(k)
-    )
+    return dict((k, v) for k, v in config_dict.items() if _is_uppercase(k))
 
 
 def _render_env_args(config_dict):
@@ -153,17 +148,24 @@ def _render_env_args(config_dict):
 
 
 def _render_options_args(config_dict, cmd_options):
-    dupl_opts = set([
-        "v", "archive-dir", "name", "s3-use-new-style",
-        "allow-source-mismatch", "tempdir"])
+    dupl_opts = set(
+        [
+            "v",
+            "archive-dir",
+            "name",
+            "s3-use-new-style",
+            "allow-source-mismatch",
+            "tempdir",
+        ]
+    )
     for k, v in config_dict.items():
         if _is_uppercase(k):
             os.environ[k] = v % (os.environ)
         elif k in dupl_opts:
-            if k == 'v':
+            if k == "v":
                 cmd_options.append("-%s%s" % (k, v))
-            elif v == 'true':
-                cmd_options.append("--%s" % (k, ))
+            elif v == "true":
+                cmd_options.append("--%s" % (k,))
             else:
                 cmd_options.append("--%s=%s" % (k, v))
 
@@ -221,8 +223,9 @@ target_url=file:///Volumes/WD Passport/duplicity/
 """
     if os.path.exists(config_file_dest):
         raise CommandException(
-            "Config file %s already exists" % config_file_dest)
-    with open(config_file_dest, 'w') as f:
+            "Config file %s already exists" % config_file_dest
+        )
+    with open(config_file_dest, "w") as f:
         f.write(sample)
     print("Wrote config to %s" % config_file_dest)
     return False
@@ -234,22 +237,39 @@ def _run_duplicity(name, cmd_options, lock, dry, config):
     env = _env_from_config(name, config)
 
     if not dry:
+
         def setlimits():
             resource.setrlimit(resource.RLIMIT_NOFILE, (1024, 1024))
 
         def proc():
             p = subprocess.Popen(cmd_options, preexec_fn=setlimits, env=env)
             p.wait()
+
         if lock:
             lockfile = os.path.join(lock_file_dest, "%s.lock" % name)
-            if not _lock(lockfile):
-                sys.stderr.write(
-                    "Lockfile %s is already acquired\n" % lockfile)
-                return
-            try:
-                proc()
-            finally:
-                _unlock(lockfile)
+
+            def delete_old_lockfile():
+                mtime = os.stat(lockfile).st_mtime
+                age = time.time() - mtime
+                if age > 10800:
+                    sys.stderr.write(
+                        "Lockfile %s is acquired, but is %d "
+                        "seconds old, deleting" % (lockfile, age)
+                    )
+                    _unlock(lockfile)
+                    return _lock(lockfile)
+                else:
+                    sys.stderr.write(
+                        "Lockfile %s is already acquired, age: %d seconds\n"
+                        % (lockfile, age)
+                    )
+                    return False
+
+            if _lock(lockfile, delete_old_lockfile):
+                try:
+                    proc()
+                finally:
+                    _unlock(lockfile)
         else:
             proc()
 
@@ -262,4 +282,3 @@ def _read_config():
     else:
         config.read(config_file_dest)
     return config
-
