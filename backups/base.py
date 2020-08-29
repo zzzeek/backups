@@ -156,6 +156,7 @@ def _render_options_args(config_dict, cmd_options):
             "s3-use-new-style",
             "allow-source-mismatch",
             "tempdir",
+            "asynchronous-upload",
         ]
     )
     for k, v in config_dict.items():
