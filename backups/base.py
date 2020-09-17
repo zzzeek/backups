@@ -157,6 +157,11 @@ def _render_options_args(config_dict, cmd_options):
             "allow-source-mismatch",
             "tempdir",
             "asynchronous-upload",
+            "timeout",
+            "volsize",
+            "ssh-options",
+            "rsync-options",
+            "ssh-askpass",
         ]
     )
     for k, v in config_dict.items():
@@ -236,6 +241,10 @@ def _run_duplicity(name, cmd_options, lock, dry, config):
     print(" ".join(cmd_options))
 
     env = _env_from_config(name, config)
+
+    for k in "SSH_AGENT_PID", "SSH_AUTH_SOCK":
+        if k in os.environ:
+            env[k] = os.environ[k]
 
     if not dry:
 
