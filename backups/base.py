@@ -152,6 +152,7 @@ def _render_options_args(config_dict, cmd_options):
         [
             "v",
             "archive-dir",
+            "copy-links",
             "name",
             "s3-use-new-style",
             "allow-source-mismatch",
