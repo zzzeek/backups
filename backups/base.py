@@ -87,7 +87,7 @@ def _restore(config, cmd_options, args):
         restore_to = os.path.join(os.sep, path, fname)
 
     if dest:
-        cmd_options.extend(["--file-to-restore", dest])
+        cmd_options.extend(["--path-to-restore", dest])
     if args.restore_to_path:
         cmd_options.extend(["--numeric-owner", "--force"])
     cmd_options.append(config_dict["target_url"])

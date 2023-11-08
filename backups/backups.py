@@ -44,7 +44,7 @@ def main(argv=None, **kwargs):
     subparser = subparsers.add_parser("restore", help="run a restore")
     _global_options(subparser)
     subparser.add_argument("dest", help="Path or file to restore, "
-                           "passed to --file-to-restore")
+                           "passed to --path-to-restore")
     subparser.add_argument("--restore-to-path", help="put files in this base")
     subparser.set_defaults(cmd=base._restore)
 
