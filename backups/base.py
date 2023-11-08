@@ -286,7 +286,7 @@ def _run_duplicity(name, cmd_options, lock, dry, config):
 
 
 def _read_config():
-    config = ConfigParser.SafeConfigParser()
+    config = ConfigParser.ConfigParser()
     config.optionxform = str
     if not os.path.exists(config_file_dest):
         return None
